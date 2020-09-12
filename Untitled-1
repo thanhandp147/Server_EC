@@ -1,0 +1,9 @@
+match (category:Categorys { name:'Điện Thoại - Máy Tính Bảng'}) 
+2
+CREATE (a:Categorys {name: "Máy đọc sách" } )
+3
+​
+4
+CREATE (a)-[:child_category]->(category)
+5
+RETURN a
