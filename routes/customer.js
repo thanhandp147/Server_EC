@@ -2,15 +2,42 @@ const route = require('express').Router();
 const uuidv5 = require('uuid').v5;
 const MY_NAMESPACE = '1b671a64-40d5-491e-99b0-da01ff1f3341';
 const CUSTOMER_MODEL = require('../models/customer');
+const { sign, verify } = require('../utils/jwt');
 
-route.get('/', function (req, res) {
-    return
-});
+// route.get('/jaccard-like', async (req, res) => {
+//     let listProducts = await CUSTOMER_MODEL.getJaccardUserSomeHobbies()
+//     return res.json({
+//         error: false,
+//         data: listProducts.data
+//     })
+// });
+
+// route.get('/jaccard-comment', async (req, res) => {
+//     let listProducts = await CUSTOMER_MODEL.getJaccardViaComment()
+//     if (listProducts.error) {
+//         return res.json({
+//             error: true,
+//             message: listProducts.message
+//         })
+//     }
+//     return res.json({
+//         error: false,
+//         data: listProducts.data
+//     })
+// });
+// route.get('/jaccard-buy', async (req, res) => {
+//     let listProducts = await CUSTOMER_MODEL.getJaccardViaBuy()
+//     return res.json({
+//         error: false,
+//         data: listProducts.data
+//     })
+// });
+
+
 
 // ReFresh TOKEN
 route.post('/refresh-token', async (req, res) => {
     let { token } = req.body;
-
     if (token) {
         let checkRefreshToken = await CUSTOMER_MODEL.refreshToken(token.toString())
         if (checkRefreshToken.error) return res.json({
@@ -62,6 +89,23 @@ route.get('/list', async (req, res) => {
     if (listCustomer.error) return res.json({ error: true, message: listCustomer.message });
     return res.json({ error: false, data: listCustomer.data })
 });
+
+route.get('/similarity', async (req, res) => {
+    let { token } = req.headers;
+
+    let infoUserVerify = await verify(`${token}`)
+    let { role, id: idUser } = infoUserVerify.data;
+
+    if (infoUserVerify) {
+        let data = await CUSTOMER_MODEL.similarity({ idUser });
+        return res.json({
+            error: false,
+            data: data.data
+        })
+    }
+});
+
+
 
 
 
