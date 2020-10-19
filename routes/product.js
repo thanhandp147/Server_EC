@@ -15,7 +15,7 @@ route.get('/click/:idProduct', async (req, res) => {
     if (infoUserVerify) {
         let makeRelClick = await PRODUCT_MODEL.click({ idUser, idProduct });
         // console.log({makeRelClick});
-        
+
         if (makeRelClick.error) return res.json({
             error: true,
             message: makeRelClick.message
@@ -36,7 +36,7 @@ route.get('/random-click', async (req, res) => {
     let { role, id: idUser } = infoUserVerify.data;
 
     if (infoUserVerify) {
-        let data = await PRODUCT_MODEL.randomClick({ idUser});
+        let data = await PRODUCT_MODEL.randomClick({ idUser });
         // if (makeRelClick.error) return res.json({
         //     error: true,
         //     message: makeRelClick.message
@@ -68,6 +68,7 @@ route.post('/update-random-score', async (req, res) => {
 route.get('/get-toplist-products', async (req, res) => {
 
     let data = await PRODUCT_MODEL.getToplistProducts();
+    
     return res.json({
         error: false,
         data: data.data
@@ -75,26 +76,94 @@ route.get('/get-toplist-products', async (req, res) => {
 
 });
 
-route.get('/', async (req, res) => {
+route.get('/get-bestsel', async (req, res) => {
 
-    let { token } = req.headers;
+    let data = await PRODUCT_MODEL.findBestSell();
+    return res.json({
+        error: false,
+        data: data.data
+    })
 
-    let infoUserVerify = await verify(`${token}`)
-    let { role, id: idUser } = infoUserVerify.data;
+});
 
-    if (infoUserVerify) {
-        let data = await PRODUCT_MODEL.randomClick({ idUser});
-        // if (makeRelClick.error) return res.json({
-        //     error: true,
-        //     message: makeRelClick.message
-        // })
+// route.get('/', async (req, res) => {
 
+//     let { token } = req.headers;
+
+//     let infoUserVerify = await verify(`${token}`)
+//     let { role, id: idUser } = infoUserVerify.data;
+
+//     if (infoUserVerify) {
+//         let data = await PRODUCT_MODEL.randomClick({ idUser });
+//         // if (makeRelClick.error) return res.json({
+//         //     error: true,
+//         //     message: makeRelClick.message
+//         // })
+
+//         return res.json({
+//             error: false,
+//             data: data.data
+//         })
+//     }
+// });
+
+route.get('/get-new-product', async (req, res) => {
+
+
+    let infoProduct = await PRODUCT_MODEL.getListNewProduct();
+    
+    
+    if (infoProduct.error) {
         return res.json({
-            error: false,
-            data: data.data
+            error: true,
+            message: infoProduct.message 
         })
     }
+    return res.json({
+        error: false,
+        data: infoProduct.data
+    })
 });
+
+route.get('/get-product-same-category/:idProduct', async (req, res) => {
+    let { idProduct } = req.params;
+
+    let infoProduct = await PRODUCT_MODEL.findWithCategoryByProductID(idProduct);
+    
+    if (infoProduct.error) {
+        return res.json({
+            error: true,
+            message: infoProduct.message 
+        })
+    }
+    return res.json({
+        error: false,
+        data: infoProduct.data
+    })
+});
+
+
+
+route.get('/info/:idProduct', async (req, res) => {
+
+    let { idProduct } = req.params;
+
+
+    let infoProduct = await PRODUCT_MODEL.getInfoById({ idProduct });
+    if (infoProduct.error) {
+        return res.json({ 
+            error: true,
+            message: infoProduct.message
+        })
+    }
+    return res.json({
+        error: false,
+        data: infoProduct.data
+    })
+});
+
+
+
 
 
 

@@ -5,6 +5,43 @@ const session = driver.session();
 
 module.exports = class Products {
 
+    // LAY THONG TIN SAN PHAM THEO ID
+    static getInfoById(data) {
+        return new Promise(async resolve => {
+            try {
+                let { idProduct } = data;
+
+                let queryGetInfoProduct = `MATCH (n:Products {id:"${idProduct}"}) RETURN n`
+                let resultQueryGetInfoProduct = await session.run(queryGetInfoProduct);
+
+                if (resultQueryGetInfoProduct.records.length) {
+                    let infoProduct = resultQueryGetInfoProduct.records[0]._fields[0].properties;
+
+                    let queryCheckProductHasPay = `MATCH (x:Products {id: "${resultQueryGetInfoProduct.records[0]._fields[0].properties.id}" })<-[n:HAVE]-(y:Orders) RETURN n`;
+                    let resultQueryCheckProductHasPay = await session.run(queryCheckProductHasPay);
+
+                    if (resultQueryCheckProductHasPay.records) {
+                        let count = 0;
+                        resultQueryCheckProductHasPay.records.map(itemAfterCheck => {
+                            count += itemAfterCheck._fields[0].properties.HAVE
+                        })
+                        infoProduct = { data: resultQueryGetInfoProduct.records[0]._fields[0].properties, hasPay: count }
+                    } else {
+                        infoProduct = { data: resultQueryGetInfoProduct.records[0]._fields[0].properties, hasPay: 0 }
+                    }
+
+                    return resolve({ error: false, data: infoProduct });
+
+                } else {
+                    return resolve({ error: true, message: "invalid_param" });
+                }
+
+            } catch (error) {
+                return resolve({ error: true, message: error.message });
+            }
+        })
+    }
+
     // XEM SAN PHAM
     static click(data) {
         return new Promise(async resolve => {
@@ -146,7 +183,7 @@ module.exports = class Products {
                             properties: {
                                 Score: {
                                     property: 'Score'
-                                }
+                                } 
                             }
                         }
                     }
@@ -166,16 +203,135 @@ module.exports = class Products {
 
                 let listTopProducts = []
                 if (result3.records.length) {
-                    result3.records.map(item => {
-                        console.log(item._fields);
+                    (async () => {
+                        for (const item of result3.records) {
+                            // console.log(item._fields[0].properties.id);
+                            let count = 0;
+                            let queryCheckProductHasPay = `MATCH (x:Products {id: "${item._fields[0].properties.id}" })<-[n:HAVE]-(y:Orders) RETURN n`;
+                            let resultQueryCheckProductHasPay = await session.run(queryCheckProductHasPay);
+                            if (resultQueryCheckProductHasPay.records.length > 0) {
+                                resultQueryCheckProductHasPay.records.map(itemAfterCheck => {
 
-                        listTopProducts.push(item._fields[0].properties)
-                    })
+                                    count += itemAfterCheck._fields[0].properties.HAVE
+                                })
+                            }
+                            listTopProducts.push({ data: item._fields[0].properties, hasPay: count });
+                        }
+                        return resolve({ error: false, data: listTopProducts });
+                    })(listTopProducts)
+                } else {
+                    return resolve({ error: false, data: listTopProducts });
                 }
-                return resolve({ error: false, data: listTopProducts });
             } catch (error) {
                 return resolve({ error: true, message: error.message });
             }
+        });
+    }
+
+    static findBestSell() {
+        return new Promise(async resolve => {
+            try {
+                let query1 = `CALL gds.graph.drop('myGraph')`;
+
+                const result1 = await session.run(query1);
+
+                let query2 = `CALL gds.graph.create(
+                    'myGraph',
+                    ['Orders', 'Products'],
+                    {
+                        HAVE: {
+                            type: 'HAVE',
+                            properties: {
+                                HAVE: {
+                                    property: 'HAVE'
+                                }
+                            }
+                        }
+                    }
+                )`
+                const result2 = await session.run(query2);
+
+                let query3 = `CALL gds.pageRank.stream('myGraph', {
+                    maxIterations: 20,
+                    dampingFactor: 0.85,
+                    relationshipWeightProperty: 'HAVE'
+                  })
+                  YIELD nodeId, score
+                  WHERE score > 0.15000000000000002
+                  RETURN gds.util.asNode(nodeId),score
+                  ORDER BY score DESC`
+                const result3 = await session.run(query3);
+
+
+                let listTopProducts = []
+                if (result3.records.length) {
+                    (async () => {
+                        for (const item of result3.records) {
+                            let count = 0;
+                            let queryCheckProductHasPay = `MATCH (x:Products {id: "${item._fields[0].properties.id}" })<-[n:HAVE]-(y:Orders) RETURN n`;
+                            let resultQueryCheckProductHasPay = await session.run(queryCheckProductHasPay);
+                            if (resultQueryCheckProductHasPay.records) {
+                                resultQueryCheckProductHasPay.records.map(itemAfterCheck => {
+
+                                    count += itemAfterCheck._fields[0].properties.HAVE
+                                })
+                            }
+                            listTopProducts.push({ data: item._fields[0].properties, hasPay: count });
+                        }
+                        return resolve({ error: false, data: listTopProducts });
+                    })()
+                } else {
+                    return resolve({ error: false, data: listTopProducts });
+                }
+            } catch (error) {
+                return resolve({ error: true, message: error.message });
+            }
+        })
+    }
+
+    // Tìm sản phẩm mới
+    static getListNewProduct() {
+        return new Promise(async resolve => {
+            let query =
+                `Match (n:Products)
+            Return n
+            Order by ID(n) desc
+            Limit 5`;
+            let listProducts = await session.run(query);
+
+
+            if (!listProducts)
+                return resolve({ error: true, message: 'get_product_fail' });
+
+            listProducts.records = listProducts.records.map(item=>{
+                return item._fields[0].properties
+            })
+            return resolve({ error: false, data: listProducts.records });
+
+        })
+    }
+
+    //Tìm những sản phẩm cùng danh mục theo ID sản phẩm
+    static findWithCategoryByProductID(productID) {
+        return new Promise(async resolve => {
+            productID = productID.trim()
+            let query = `MATCH(:Products {id :"${productID}" })-->(category:Categorys)
+            MATCH(category)-[:child_category]->(categoryP :Categorys)
+            Match (categoryP)<-[:child_category]-(categoryC :Categorys)
+            where not( categoryC.name =  category.name)
+             Match (categoryC)<--(p2:Products)
+            RETURN p2 Limit 25`;
+            let listProducts = await session.run(
+                query
+            );
+            
+
+            if (!listProducts) return resolve({ error: true, message: 'fail' });
+
+            listProducts.records = listProducts.records.map(item=>{
+                return item._fields[0].properties
+            })
+            return resolve({ error: false, message: 'get_success', data: listProducts.records });
         });
     }
 }

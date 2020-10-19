@@ -641,6 +641,8 @@ module.exports = class Customers {
         return new Promise(async resolve => {
             try {
                 let { idUser } = data;
+
+                
                 let query1 = `CALL gds.graph.drop('myGraph')`;
 
                 const result1 = await session.run(query1);
@@ -675,16 +677,13 @@ module.exports = class Customers {
                     console.log(`==========`);
                     (async () => {
                         for (const item of result3.records) {
-                            
-                            
+
+
                             console.log(item._fields[0]);
                             console.log(item._fields[2]);
                             console.log(item._fields[4]);
 
-
                             if (item._fields[4] >= 0.3) {
-                                
-
                                 let queryCheckExist = `MATCH p=(a:Customer {id: $id1})-[r:SIMILARITY]->(b:Customer {id : $id2})
                                  RETURN p`
                                 const result = await session.run(queryCheckExist, {
@@ -693,7 +692,7 @@ module.exports = class Customers {
                                 })
                                 if (result.records.length) {
                                     console.log("Update");
-                                    
+
                                     if (item._fields[4] >= 0.3 && item._fields[4] < 0.5) {
                                         let querySetNewLevel = `MATCH p=(a:Customer {id: $id1})-[r:SIMILARITY]-(b:Customer {id : $id2})
                                         SET r.Level = ${Number(1)}
@@ -736,7 +735,7 @@ module.exports = class Customers {
 
                                 } else {
                                     console.log(`Create New`);
-                                    
+
                                     if (item._fields[4] >= 0.3 && item._fields[4] < 0.5) {
                                         let queryReShipProductCategory =
                                             `MATCH (a:Customer { id: $id1 }),(b:Customer { id:$id2})
@@ -790,7 +789,7 @@ module.exports = class Customers {
                                 })
                                 if (result.records.length) {
                                     let queryDeleteRelation = `MATCH p=(a:Customer {id: $id1})-[r:SIMILARITY]-(b:Customer {id : $id2})
-                                    DELETE r` 
+                                    DELETE r`
                                     const result = await session.run(queryDeleteRelation, {
                                         id1: item._fields[1],
                                         id2: item._fields[3]
@@ -800,11 +799,6 @@ module.exports = class Customers {
                         }
                     })()
                 }
-
-
-
-
-
                 return resolve({ error: false, message: 'create_susscess' });
             } catch (error) {
                 return resolve({ error: true, message: error.message });
@@ -813,6 +807,17 @@ module.exports = class Customers {
     }
 
 
+    // tìm theo ID khách hàng
+    static findById(idCutomer) {
+        return new Promise(async resolve => {
+            let query = `MATCH (n:Customer{id :$idCutomer}) RETURN n `;
+            const listCustomers = await session.run(query,
+                { idCutomer: idCutomer });
+            if (!listCustomers.records && listCustomers.records.length == 0) return resolve({ error: true, message: 'cant_get_customer' });
 
+
+            return resolve({ error: false, data: listCustomers.records[0]._fields[0].properties });
+        })
+    }
 
 }
