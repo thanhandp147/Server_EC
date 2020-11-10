@@ -10,3 +10,10 @@ RETURN a
 
 let query = `match (a:Customer {id:$ID1})-[r:FOCUS]-(b:Products)-[r2:FOCUS]-(c:Customer {id:$ID2})
                 set r.Score = $Score1, r2.Score = $Score2`;
+
+
+match (category:Categorys { name:'Điện Thoại - Máy Tính Bảng'}) 
+CREATE (a:Categorys {name: "Máy đọc sách" } )
+
+CREATE (a)-[:child_category]->(category)
+RETURN a

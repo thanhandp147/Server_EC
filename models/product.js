@@ -22,10 +22,29 @@ module.exports = class Products {
 
                     if (resultQueryCheckProductHasPay.records) {
                         let count = 0;
+                        let score = 0;
                         resultQueryCheckProductHasPay.records.map(itemAfterCheck => {
                             count += itemAfterCheck._fields[0].properties.HAVE
                         })
-                        infoProduct = { data: resultQueryGetInfoProduct.records[0]._fields[0].properties, hasPay: count }
+
+                        let queryCheckScoreProduct = `MATCH (x:Products {id: "${resultQueryGetInfoProduct.records[0]._fields[0].properties.id}" })<-[n:FOCUS]-(y:Customer) RETURN n`;
+                        let resultQueryCheckScoreProduct = await session.run(queryCheckScoreProduct);
+                        if (resultQueryCheckScoreProduct.records.length > 0) {
+                            resultQueryCheckScoreProduct.records.map(item => {
+                                score += item._fields[0].properties.Score
+                            })
+                        }
+
+                        let listComments = []
+                        let queryCheckCommentProduct = `MATCH (x:Products {id: "${resultQueryGetInfoProduct.records[0]._fields[0].properties.id}" })<-[:HAVECOMMENT]-(c:Comments) RETURN c`;
+                        let resultQueryCheckCommentProduct = await session.run(queryCheckCommentProduct);
+                        if (resultQueryCheckCommentProduct.records.length > 0) {
+                            resultQueryCheckCommentProduct.records.map(item => {
+                                listComments.push(item._fields[0].properties)
+                            })
+                        }
+
+                        infoProduct = { data: resultQueryGetInfoProduct.records[0]._fields[0].properties, hasPay: count, totalScore: score, comments: listComments.reverse() }
                     } else {
                         infoProduct = { data: resultQueryGetInfoProduct.records[0]._fields[0].properties, hasPay: 0 }
                     }
@@ -47,7 +66,7 @@ module.exports = class Products {
         return new Promise(async resolve => {
             try {
                 let { idUser, idProduct } = data;
-                console.log({ idUser, idProduct });
+                // console.log({ idUser, idProduct });
 
                 let queryRe = `MATCH (:Customer { id: $idCustomer })-[r:FOCUS]->(Products { id: $idProduct })
                 RETURN r`;
@@ -170,9 +189,7 @@ module.exports = class Products {
 
         return new Promise(async resolve => {
             try {
-                let query1 = `CALL gds.graph.drop('myGraph')`;
-
-                const result1 = await session.run(query1);
+               
 
                 let query2 = `CALL gds.graph.create(
                     'myGraph',
@@ -201,12 +218,17 @@ module.exports = class Products {
                   ORDER BY score DESC`
                 const result3 = await session.run(query3);
 
+                let query1 = `CALL gds.graph.drop('myGraph')`;
+
+                const result1 = await session.run(query1);
+
                 let listTopProducts = []
                 if (result3.records.length) {
                     (async () => {
                         for (const item of result3.records) {
                             // console.log(item._fields[0].properties.id);
                             let count = 0;
+                            let score = 0;
                             let queryCheckProductHasPay = `MATCH (x:Products {id: "${item._fields[0].properties.id}" })<-[n:HAVE]-(y:Orders) RETURN n`;
                             let resultQueryCheckProductHasPay = await session.run(queryCheckProductHasPay);
                             if (resultQueryCheckProductHasPay.records.length > 0) {
@@ -215,7 +237,15 @@ module.exports = class Products {
                                     count += itemAfterCheck._fields[0].properties.HAVE
                                 })
                             }
-                            listTopProducts.push({ data: item._fields[0].properties, hasPay: count });
+                            let queryCheckScoreProduct = `MATCH (x:Products {id: "${item._fields[0].properties.id}" })<-[n:FOCUS]-(y:Customer) RETURN n`;
+                            let resultQueryCheckScoreProduct = await session.run(queryCheckScoreProduct);
+                            if (resultQueryCheckScoreProduct.records.length > 0) {
+                                resultQueryCheckScoreProduct.records.map(item => {
+                                    score += item._fields[0].properties.Score
+                                })
+                            }
+
+                            listTopProducts.push({ data: item._fields[0].properties, hasPay: count, totalScore: score });
                         }
                         return resolve({ error: false, data: listTopProducts });
                     })(listTopProducts)
@@ -231,9 +261,7 @@ module.exports = class Products {
     static findBestSell() {
         return new Promise(async resolve => {
             try {
-                let query1 = `CALL gds.graph.drop('myGraph')`;
-
-                const result1 = await session.run(query1);
+                
 
                 let query2 = `CALL gds.graph.create(
                     'myGraph',
@@ -261,6 +289,10 @@ module.exports = class Products {
                   RETURN gds.util.asNode(nodeId),score
                   ORDER BY score DESC`
                 const result3 = await session.run(query3);
+
+                let query1 = `CALL gds.graph.drop('myGraph')`;
+
+                const result1 = await session.run(query1);
 
 
                 let listTopProducts = []
@@ -303,7 +335,7 @@ module.exports = class Products {
             if (!listProducts)
                 return resolve({ error: true, message: 'get_product_fail' });
 
-            listProducts.records = listProducts.records.map(item=>{
+            listProducts.records = listProducts.records.map(item => {
                 return item._fields[0].properties
             })
             return resolve({ error: false, data: listProducts.records });
@@ -324,14 +356,382 @@ module.exports = class Products {
             let listProducts = await session.run(
                 query
             );
-            
+
 
             if (!listProducts) return resolve({ error: true, message: 'fail' });
 
-            listProducts.records = listProducts.records.map(item=>{
+            listProducts.records = listProducts.records.map(item => {
                 return item._fields[0].properties
             })
             return resolve({ error: false, message: 'get_success', data: listProducts.records });
         });
     }
+
+    static getRecommendProductBySimilarity(idUser) {
+        return new Promise(async resolve => {
+            try {
+                // console.log(idUser);
+
+                let queryFindListUserSimilarityWithUs = `MATCH (:Customer {id: $id})-[p:SIMILARITY]-> (listUser:Customer) RETURN listUser, p`
+
+                let resultQueryFindListUserSimilarityWithUs = await session.run(queryFindListUserSimilarityWithUs, {
+                    id: idUser
+                })
+
+
+
+                let listProductRecomend = []
+
+                if (resultQueryFindListUserSimilarityWithUs.records.length) {
+                    (async () => {
+                        for (const item of resultQueryFindListUserSimilarityWithUs.records) {
+                            // console.log(item);
+
+
+                            let queryGetOrderOfUser = `MATCH (order:Orders{ idCustomer : "${item._fields[0].properties.id}", status : 1 })	
+                           RETURN order `
+                            let resultQueryGetOrderOfUser = await session.run(queryGetOrderOfUser);
+
+                            if (resultQueryGetOrderOfUser.records.length) {
+                                
+                                let query2 = `CALL gds.graph.create(
+                                    'myGraph',
+                                    ['Customer', 'Products'],
+                                    {
+                                        FOCUS: {
+                                            type: 'FOCUS',
+                                            properties: {
+                                                Score: {
+                                                    property: 'Score'
+                                                } 
+                                            }
+                                        }
+                                    }
+                                )`
+                                const result2 = await session.run(query2);
+
+                                let query3 = `CALL gds.pageRank.stream('myGraph', {
+                                    maxIterations: 20,
+                                    dampingFactor: 0.85,
+                                    relationshipWeightProperty: 'Score'
+                                  })
+                                  YIELD nodeId, score
+                                  RETURN gds.util.asNode(nodeId),score
+                                  ORDER BY score DESC`
+                                const result3 = await session.run(query3);
+
+                                let query1 = `CALL gds.graph.drop('myGraph')`;
+                                const result1 = await session.run(query1);
+
+                                let qureryGetAllProductByIdOrder =
+                                    `MATCH (n:Orders {id:"${resultQueryGetOrderOfUser.records[resultQueryGetOrderOfUser.records.length - 1]._fields[0].properties.id}"})-[:HAVE]->(product:Products) 
+                                RETURN product`
+
+                                let resultQureryGetAllProductByIdOrder = await session.run(qureryGetAllProductByIdOrder);
+
+                                let arrayIDProduct = resultQureryGetAllProductByIdOrder.records.map(item => {
+                                    return item._fields[0].properties.id
+                                })
+
+                                let arrayDemo = [];
+
+                                let arrayNew = result3.records.map((item, index) => {
+                                    arrayIDProduct.map(itemX => {
+                                        if (item._fields[0].properties.id == itemX)
+                                            return arrayDemo.push(item)
+                                    })
+                                })
+
+                                if (item._fields[1].properties.Level.low == 1) {
+                                    arrayDemo = arrayDemo.slice(0, 1)
+                                }
+                                if (item._fields[1].properties.Level.low == 2) {
+                                    arrayDemo = arrayDemo.slice(0, 2)
+                                }
+                                if (item._fields[1].properties.Level.low == 3) {
+                                    arrayDemo = arrayDemo.slice(0, 3)
+                                }
+                                if (item._fields[1].properties.Level.low == 4) {
+                                    arrayDemo = arrayDemo.slice(0, 4)
+                                }
+
+
+
+                                arrayDemo.map(item => {
+                                    return listProductRecomend.push(item._fields[0].properties)
+                                })
+                            } else {
+                            }
+                        }
+
+                        // console.log(listProductRecomend);
+
+                        let listTopProducts = []
+                        if (listProductRecomend.length > 0) {
+                            (async () => {
+                                for (const item of listProductRecomend) {
+
+                                    let count = 0;
+                                    let score = 0;
+                                    let queryCheckProductHasPay = `MATCH (x:Products {id: "${item.id}" })<-[n:HAVE]-(y:Orders) RETURN n`;
+                                    let resultQueryCheckProductHasPay = await session.run(queryCheckProductHasPay);
+                                    if (resultQueryCheckProductHasPay.records.length > 0) {
+                                        resultQueryCheckProductHasPay.records.map(itemAfterCheck => {
+                                            count += itemAfterCheck._fields[0].properties.HAVE
+                                        })
+                                    }
+
+                                    let queryCheckScoreProduct = `MATCH (x:Products {id: "${item.id}" })<-[n:FOCUS]-(y:Customer) RETURN n`;
+                                    let resultQueryCheckScoreProduct = await session.run(queryCheckScoreProduct);
+                                    if (resultQueryCheckScoreProduct.records.length > 0) {
+                                        resultQueryCheckScoreProduct.records.map(item => {
+                                            score += item._fields[0].properties.Score
+                                        })
+                                    }
+                                    listTopProducts.push({ data: item, hasPay: count, totalScore: score });
+                                }
+                                return resolve({ error: false, data: listTopProducts });
+                            })()
+
+                        }
+                        // return resolve({ error: false, data: listProductRecomend });
+
+                    })()
+
+
+                } else {
+                    return resolve({ error: false, data: listProductRecomend });
+                }
+
+            } catch (error) {
+                return resolve({ error: true, message: error.message });
+            }
+        })
+    }
+
+
+    static getAllProducts() {
+        return new Promise(async resolve => {
+            try {
+
+                let queryFindListUserSimilarityWithUs = `MATCH (n:Products) RETURN n `
+
+                let resultQueryFindListUserSimilarityWithUs = await session.run(queryFindListUserSimilarityWithUs)
+
+                if (resultQueryFindListUserSimilarityWithUs.records) {
+                    // (async () => {
+                    //     for (const [index,item] of resultQueryFindListUserSimilarityWithUs.records.entries()) {
+                    //         console.log(item._fields[0].properties.id);
+                    //         console.log(resultQueryFindListUserSimilarityWithUs.records[index]._fields[0].properties.id);
+                    //     }
+                    // })()
+                    resultQueryFindListUserSimilarityWithUs.records = resultQueryFindListUserSimilarityWithUs.records.map(item => {
+                        console.log(item._fields[0].properties.id);
+                        
+                        return item._fields[0].properties.id
+                    })
+
+                    // console.log(resultQueryFindListUserSimilarityWithUs.records);
+
+                    let findDuplicates = arr => arr.filter((item, index) => arr.indexOf(item) != index)
+                    console.log([...new Set(findDuplicates(resultQueryFindListUserSimilarityWithUs.records))])
+
+                }
+
+            } catch (error) {
+                return resolve({ error: true, message: error.message });
+            }
+        })
+    }
+
+    static getAllCampaign() {
+        return new Promise(async resolve => {
+            try {
+
+                let queryFindListUserSimilarityWithUs = `MATCH (n:Campaigns) RETURN n `
+
+                let resultQueryFindListUserSimilarityWithUs = await session.run(queryFindListUserSimilarityWithUs)
+
+                if (resultQueryFindListUserSimilarityWithUs.records.length) {
+                    resultQueryFindListUserSimilarityWithUs.records = resultQueryFindListUserSimilarityWithUs.records.map(item => {
+                        return item._fields[0].properties
+                    })
+                    return resolve({ error: false, data: resultQueryFindListUserSimilarityWithUs.records })
+                }
+
+            } catch (error) {
+                return resolve({ error: true, message: error.message });
+            }
+        })
+    }
+
+    static getAllProductByCampaignId(idCampaign) {
+        return new Promise(async resolve => {
+            try {
+
+                let queryFindListUserSimilarityWithUs = `MATCH (products:Products)-[:INCAMPAIGN]->(campaign:Campaigns {id:"${idCampaign}"}) 
+                RETURN products `
+
+                let resultQueryFindListUserSimilarityWithUs = await session.run(queryFindListUserSimilarityWithUs)
+
+                let listTopProducts = []
+                if (resultQueryFindListUserSimilarityWithUs.records.length) {
+                    (async () => {
+                        for (const item of resultQueryFindListUserSimilarityWithUs.records) {
+                            let count = 0;
+                            let score = 0;
+                            let queryCheckProductHasPay = `MATCH (x:Products {id: "${item._fields[0].properties.id}" })<-[n:HAVE]-(y:Orders) RETURN n`;
+                            let resultQueryCheckProductHasPay = await session.run(queryCheckProductHasPay);
+                            if (resultQueryCheckProductHasPay.records.length > 0) {
+                                resultQueryCheckProductHasPay.records.map(itemAfterCheck => {
+                                    count += itemAfterCheck._fields[0].properties.HAVE
+                                })
+                            }
+
+                            let queryCheckScoreProduct = `MATCH (x:Products {id: "${item._fields[0].properties.id}" })<-[n:FOCUS]-(y:Customer) RETURN n`;
+                            let resultQueryCheckScoreProduct = await session.run(queryCheckScoreProduct);
+                            if (resultQueryCheckScoreProduct.records.length > 0) {
+                                resultQueryCheckScoreProduct.records.map(item => {
+                                    score += item._fields[0].properties.Score
+                                })
+                            }
+
+                            listTopProducts.push({ data: item._fields[0].properties, hasPay: count, totalScore: score });
+                        }
+                        return resolve({ error: false, data: listTopProducts });
+                    })(listTopProducts)
+                } else {
+                    return resolve({ error: false, data: listTopProducts });
+                }
+
+            } catch (error) {
+                return resolve({ error: true, message: error.message });
+            }
+        })
+    }
+
+
+    static getAllProductHasNewPrice() {
+        return new Promise(async resolve => {
+            try {
+
+                let query =
+                    `
+                        MATCH(n:Products) 
+                        where n.newPrice > 0
+                        RETURN  n`;
+                let listProducts = await session.run(query);
+
+                if (listProducts.records.length > 0) {
+                    listProducts.records = listProducts.records.map(item => {
+                        // return (100 - (Number(item._fields[0].properties.newPrice / item._fields[0].properties.price * 100)))
+                        return item._fields[0].properties
+
+                    })
+                    // console.log(listProducts.records);
+
+                    listProducts.records.sort(function (a, b) {
+                        return (100 - (Number(b.newPrice / b.price * 100))) - (100 - (Number(a.newPrice / a.price * 100)));
+                    });
+
+
+                    let listTopProducts = []
+                    if (listProducts.records.length > 0) {
+                        (async () => {
+                            for (const item of listProducts.records) {
+                                let count = 0;
+                                let score = 0;
+                                let queryCheckProductHasPay = `MATCH (x:Products {id: "${item.id}" })<-[n:HAVE]-(y:Orders) RETURN n`;
+                                let resultQueryCheckProductHasPay = await session.run(queryCheckProductHasPay);
+                                if (resultQueryCheckProductHasPay.records.length > 0) {
+                                    resultQueryCheckProductHasPay.records.map(itemAfterCheck => {
+                                        count += itemAfterCheck._fields[0].properties.HAVE
+                                    })
+                                }
+
+                                let queryCheckScoreProduct = `MATCH (x:Products {id: "${item.id}" })<-[n:FOCUS]-(y:Customer) RETURN n`;
+                                let resultQueryCheckScoreProduct = await session.run(queryCheckScoreProduct);
+                                if (resultQueryCheckScoreProduct.records.length > 0) {
+                                    resultQueryCheckScoreProduct.records.map(item => {
+                                        score += item._fields[0].properties.Score
+                                    })
+                                }
+                                listTopProducts.push({ data: item, hasPay: count, totalScore: score });
+                            }
+                            return resolve({ error: false, data: listTopProducts });
+                        })(listTopProducts)
+                    } else {
+                        return resolve({ error: false, data: listTopProducts });
+                    }
+                }
+
+
+            } catch (error) {
+                return resolve({ error: true, message: error.message });
+            }
+        })
+    }
+
+    static getAllProductInCartNotPay(idUser) {
+        return new Promise(async resolve => {
+            try {
+                // console.log(idUser);
+                
+                // let query =
+                //     `
+                //         MATCH(n:Products) 
+                //         where n.newPrice > 0
+                //         RETURN  n`;
+                // let listProducts = await session.run(query);
+
+                // if (listProducts.records.length > 0) {
+                //     listProducts.records = listProducts.records.map(item => {
+                //         // return (100 - (Number(item._fields[0].properties.newPrice / item._fields[0].properties.price * 100)))
+                //         return item._fields[0].properties
+
+                //     })
+                //     console.log(listProducts.records);
+
+                //     listProducts.records.sort(function (a, b) {
+                //         return (100 - (Number(b.newPrice / b.price * 100))) - (100 - (Number(a.newPrice / a.price * 100)));
+                //     });
+
+
+                //     let listTopProducts = []
+                //     if (listProducts.records.length > 0) {
+                //         (async () => {
+                //             for (const item of listProducts.records) {
+                //                 let count = 0;
+                //                 let score = 0;
+                //                 let queryCheckProductHasPay = `MATCH (x:Products {id: "${item.id}" })<-[n:HAVE]-(y:Orders) RETURN n`;
+                //                 let resultQueryCheckProductHasPay = await session.run(queryCheckProductHasPay);
+                //                 if (resultQueryCheckProductHasPay.records.length > 0) {
+                //                     resultQueryCheckProductHasPay.records.map(itemAfterCheck => {
+                //                         count += itemAfterCheck._fields[0].properties.HAVE
+                //                     })
+                //                 }
+
+                //                 let queryCheckScoreProduct = `MATCH (x:Products {id: "${item.id}" })<-[n:FOCUS]-(y:Customer) RETURN n`;
+                //                 let resultQueryCheckScoreProduct = await session.run(queryCheckScoreProduct);
+                //                 if (resultQueryCheckScoreProduct.records.length > 0) {
+                //                     resultQueryCheckScoreProduct.records.map(item => {
+                //                         score += item._fields[0].properties.Score
+                //                     })
+                //                 }
+                //                 listTopProducts.push({ data: item, hasPay: count, totalScore: score });
+                //             }
+                //             return resolve({ error: false, data: listTopProducts });
+                //         })(listTopProducts)
+                //     } else {
+                //         return resolve({ error: false, data: listTopProducts });
+                //     }
+                // }
+
+
+            } catch (error) {
+                return resolve({ error: true, message: error.message });
+            }
+        })
+    }
+
 }

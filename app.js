@@ -7,6 +7,7 @@ const PRODUCT_ROUTER = require('./routes/product');
 const COMMENT_ROUTER = require('./routes/comment');
 const ORDER_ROUTER    = require('./routes/order');
 const CATEGORY_ROUTER =require('./routes/category')
+const ADMIN_ROUTER = require('./routes/admin')
 
 const bodyParser = require('body-parser');
 const uuidv5 = require('uuid').v5;
@@ -21,6 +22,8 @@ app.use('/products', PRODUCT_ROUTER);
 app.use('/comments', COMMENT_ROUTER);
 app.use('/orders', ORDER_ROUTER);
 app.use('/categories', CATEGORY_ROUTER);
+app.use('/admin', ADMIN_ROUTER);
+
 
 
 app.get('/', (req, res) => {

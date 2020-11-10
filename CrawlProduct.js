@@ -1,13 +1,13 @@
 const puppeteer = require('puppeteer');
 const neo4j = require('neo4j-driver');
-const driver = neo4j.driver('bolt://localhost', neo4j.auth.basic('neo4j', '123456'));
+const driver = neo4j.driver('bolt://localhost', neo4j.auth.basic('neo4j', '123123123'));
 // const queryCypher = require('./cypher_R')
 
 var session = driver.session();
 
 
 // console.log(driver)
-let electronicUrl = 'https://tiki.vn/xe-tay-ga/c11878';
+let electronicUrl = 'https://tiki.vn/xe-dien/c6070?src=c.6070.hamburger_menu_fly_out_banner';
 (async () => {
     const browser = await puppeteer.launch({ headless: true });
     const page = await browser.newPage();
@@ -18,8 +18,9 @@ let electronicUrl = 'https://tiki.vn/xe-tay-ga/c11878';
         console.log(`-----`);
 
         let product_wrapper = document.querySelectorAll('.product-item');
-        product_wrapper.forEach((product) => {
-            let dataJson = {}
+        product_wrapper.forEach((product, i) => {
+            if (i > 19) return
+            let dataJson = {} 
             console.log({ product })
             try {
                 console.log({ product })
@@ -63,7 +64,7 @@ let electronicUrl = 'https://tiki.vn/xe-tay-ga/c11878';
             queryReShipProductCategory
             , {
                 productName: _product.name,
-                categoryName: "Xe tay ga"
+                categoryName: "Xe điện"
             }
         );
     }

@@ -94,9 +94,34 @@ module.exports = class Orders {
                         amount: Number(amount)
                     });
 
+                let queryGetOrderOfUSer = `MATCH (u:Customer {id:"${idCustomer}"})<-[:OF]- (o:Orders {status:0})
+                return o`
+                let resultQueryGetOrderOfUSer = await session.run(queryGetOrderOfUSer);
+                let listProductOfOrderNotPay = []
+                if (resultQueryGetOrderOfUSer.records.length > 0) {
+                    let getListProductOrder = `MATCH (u:Orders {id:"${resultQueryGetOrderOfUSer.records[0]._fields[0].properties.id}"})-[s:HAVE]-> (o:Products)
+                    return o,s`
+                    let resultGetListProductOrder = await session.run(getListProductOrder);
+
+
+                    if (resultGetListProductOrder.records.length > 0) {
+                        (async () => {
+                            for (const item of resultGetListProductOrder.records) {
+                                let newFormat = { 
+                                    data: item._fields[0].properties,
+                                    count: item._fields[1].properties.HAVE,
+                                    idOrder: resultQueryGetOrderOfUSer.records[0]._fields[0].properties.id
+                                }
+                                listProductOfOrderNotPay.push(newFormat)
+                            }
+                        })()
+                    }
+
+                }
+
 
                 // if (!relationshipOrderWithProduct) return resolve({ error: true, message: 'cant_make_relationship' });
-                return resolve({ error: false, message: 'true' });
+                return resolve({ error: false, message: 'true', data: listProductOfOrderNotPay });
             } catch (error) {
                 return resolve({ error: true, message: error.message });
             }
@@ -119,7 +144,33 @@ module.exports = class Orders {
 
             const listOrders = await session.run(query, { orderID: orderID, productId: productID, amout: Number(amout) });
             if (listOrders.records.length == 0) return resolve({ error: true, message: 'cant_get_product', data: [] })
-            return resolve({ error: false, data: listOrders.records });
+
+            let queryGetOrderOfUSer = `MATCH (u:Customer {id:"${idCustomer}"})<-[:OF]- (o:Orders {status:0})
+                return o`
+            let resultQueryGetOrderOfUSer = await session.run(queryGetOrderOfUSer);
+            let listProductOfOrderNotPay = []
+            if (resultQueryGetOrderOfUSer.records.length > 0) {
+                let getListProductOrder = `MATCH (u:Orders {id:"${resultQueryGetOrderOfUSer.records[0]._fields[0].properties.id}"})-[s:HAVE]-> (o:Products)
+                    return o,s`
+                let resultGetListProductOrder = await session.run(getListProductOrder);
+
+
+                if (resultGetListProductOrder.records.length > 0) {
+                    (async () => {
+                        for (const item of resultGetListProductOrder.records) {
+                            let newFormat = {
+                                data: item._fields[0].properties,
+                                count: item._fields[1].properties.HAVE,
+                                idOrder: resultQueryGetOrderOfUSer.records[0]._fields[0].properties.id
+                            }
+                            listProductOfOrderNotPay.push(newFormat)
+                        }
+                    })()
+                }
+
+            }
+
+            return resolve({ error: false, data: listProductOfOrderNotPay });
         })
     }
 

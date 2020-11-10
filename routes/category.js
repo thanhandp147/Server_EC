@@ -21,7 +21,7 @@ route.get('/', async (req, res) => {
         })
     }
     return res.json({
-        erorr: false,
+        error: false,
         data: listCategories.data
     })
     // return res.json({ error: true, message: 'cant_create_order' });
@@ -40,7 +40,7 @@ route.get('/:nameCategory', async (req, res) => {
         })
     }
     return res.json({
-        erorr: false,
+        error: false,
         data: listCategories.data
     })
     // return res.json({ error: true, message: 'cant_create_order' });

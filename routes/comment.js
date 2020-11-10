@@ -20,7 +20,7 @@ route.post('/new-comment', async (req, res) => {
         let keyuuid =  date.toString() + token
         let id = uuidv5(keyuuid, MY_NAMESPACE);
         console.log(id);
-        let hadInsertCategory = await COMMENT_MODEL.insert(id.toString(), authorID, content, productID, authorName, isGoodComment);
+        let hadInsertCategory = await COMMENT_MODEL.insert(id.toString(), authorID, content, productID, authorName, isGoodComment,date);
         console.log(hadInsertCategory)
         if(hadInsertCategory.error) return res.json({ message:hadInsertCategory.message });
         return res.json(hadInsertCategory)

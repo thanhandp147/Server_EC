@@ -71,14 +71,46 @@ module.exports = class Customers {
                     }
                 );
                 if (infoUser.records.length == 0)
-                    return resolve({ error: true, message: 'phone_existed' });
+                    return resolve({ error: true, message: 'login_fail' });
                 const checkPass = await compare(password, infoUser.records[0]._fields[0].properties.password);
 
                 if (!checkPass)
-                    return resolve({ error: true, message: 'password_not_exist' });
+                    return resolve({ error: true, message: 'login_fail' });
                 await delete infoUser.password;
                 let token = await sign({ data: infoUser.records[0]._fields[0].properties });
-                return resolve({ error: false, data: { infoUser, token } });
+
+                let queryGetOrderOfUSer = `MATCH (u:Customer {id:"${infoUser.records[0]._fields[0].properties.id}"})<-[:OF]- (o:Orders {status:0})
+                return o`
+                let resultQueryGetOrderOfUSer = await session.run(queryGetOrderOfUSer);
+
+                let listProductOfOrderNotPay = []
+                if (resultQueryGetOrderOfUSer.records.length > 0) {
+                    // (async () => {
+                    //     for (const item of resultQueryGetOrderOfUSer.records) {
+                    //         console.log(item._fields[0]);
+                    //     }
+                    // })()
+                    let getListProductOrder = `MATCH (u:Orders {id:"${resultQueryGetOrderOfUSer.records[0]._fields[0].properties.id}"})-[s:HAVE]-> (o:Products)
+                    return o,s`
+                    let resultGetListProductOrder = await session.run(getListProductOrder);
+
+
+                    if (resultGetListProductOrder.records.length > 0) {
+                        (async () => {
+                            for (const item of resultGetListProductOrder.records) {
+                                let newFormat = {
+                                    data: item._fields[0].properties,
+                                    count: item._fields[1].properties.HAVE,
+                                    idOrder: resultQueryGetOrderOfUSer.records[0]._fields[0].properties.id
+                                }
+                                listProductOfOrderNotPay.push(newFormat)
+                            }
+                        })()
+                    }
+
+                }
+
+                return resolve({ error: false, data: { infoUser: infoUser.records[0]._fields[0].properties, token, listProductOfOrderNotPay } });
             } catch (error) {
                 return resolve({ error: true, message: error.message });
             }
@@ -104,9 +136,39 @@ module.exports = class Customers {
                 );
                 await delete infoUser.password;
                 let tokenSign = await sign({ data: infoUser.records[0]._fields[0].properties });
+                let queryGetOrderOfUSer = `MATCH (u:Customer {id:"${infoUser.records[0]._fields[0].properties.id}"})<-[:OF]- (o:Orders {status:0})
+                return o`
+                let resultQueryGetOrderOfUSer = await session.run(queryGetOrderOfUSer);
+
+                let listProductOfOrderNotPay = []
+                if (resultQueryGetOrderOfUSer.records.length > 0) {
+                    // (async () => {
+                    //     for (const item of resultQueryGetOrderOfUSer.records) {
+                    //         console.log(item._fields[0]);
+                    //     }
+                    // })()
+                    let getListProductOrder = `MATCH (u:Orders {id:"${resultQueryGetOrderOfUSer.records[0]._fields[0].properties.id}"})-[s:HAVE]-> (o:Products)
+                    return o,s`
+                    let resultGetListProductOrder = await session.run(getListProductOrder);
+
+
+                    if (resultGetListProductOrder.records.length > 0) {
+                        (async () => {
+                            for (const item of resultGetListProductOrder.records) {
+                                let newFormat = {
+                                    data: item._fields[0].properties,
+                                    count: item._fields[1].properties.HAVE,
+                                    idOrder: resultQueryGetOrderOfUSer.records[0]._fields[0].properties.id
+                                }
+                                listProductOfOrderNotPay.push(newFormat)
+                            }
+                        })()
+                    }
+
+                }
                 return resolve({
                     error: false,
-                    data: { infoUser, token: tokenSign }
+                    data: { infoUser: infoUser.records[0]._fields[0].properties, token: tokenSign, listProductOfOrderNotPay }
                 })
 
 
@@ -642,10 +704,6 @@ module.exports = class Customers {
             try {
                 let { idUser } = data;
 
-                
-                let query1 = `CALL gds.graph.drop('myGraph')`;
-
-                const result1 = await session.run(query1);
 
                 let query2 = `CALL gds.graph.create(
                     'myGraph',
@@ -672,6 +730,10 @@ module.exports = class Customers {
                 similarity
                 ORDER BY Person1`
                 const result3 = await session.run(query3);
+
+                let query1 = `CALL gds.graph.drop('myGraph')`;
+
+                const result1 = await session.run(query1);
 
                 if (result3.records.length) {
                     console.log(`==========`);

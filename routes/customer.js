@@ -36,8 +36,8 @@ const { sign, verify } = require('../utils/jwt');
 
 
 // ReFresh TOKEN
-route.post('/refresh-token', async (req, res) => {
-    let { token } = req.body;
+route.get('/refresh-token', async (req, res) => {
+    let { token } = req.headers;
     if (token) {
         let checkRefreshToken = await CUSTOMER_MODEL.refreshToken(token.toString())
         if (checkRefreshToken.error) return res.json({

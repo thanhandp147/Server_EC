@@ -6,20 +6,22 @@ const session = driver.session();
 module.exports = class Comments {
 
     // BINH LUAN SAN PHAM
-    static insert(id, authorID, content, productID, authorName, isGoodComment) {
+    static insert(id, authorID, content, productID, authorName, isGoodComment, date) {
         return new Promise(async resolve => {
             try {
                 // let queryCheckExitComment 
                 const resultPromise = await session.run(
                     `
-                        CREATE (comment:Comments { id: $id, author : $authorID, content : $content, productID: $productID, authorName : $authorName  })
+                        CREATE (comment:Comments { id: $id, author : $authorID, content : $content, productID: $productID, authorName : $authorName, isGoodCmt: $isGoodComment, timeCreate: $timeCreate })
                         RETURN comment`
                     , {
                         id: id,
                         authorID: authorID,
                         content: content,
                         productID: productID,
-                        authorName: authorName
+                        authorName: authorName,
+                        isGoodComment: isGoodComment,
+                        timeCreate: date
                     }
                 );
 

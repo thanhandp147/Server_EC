@@ -7,6 +7,8 @@ const { sign, verify } = require('../utils/jwt');
 
 route.post('/new', async (req, res) => {
     let { productID, amount } = req.body;
+    console.log(productID, amount);
+    
     let { token } = req.headers;
     console.log('==========new order=========')
     addressShip = '';
@@ -24,14 +26,14 @@ route.post('/new', async (req, res) => {
             let orderID = infoOder.data[0]._fields[2].properties.id;
             let infoUpdateOrder = await ORDER_MODEL.addNewProduct(orderID, productID, amount, idUser);
             if (!infoUpdateOrder) return res.json({ error: true, message: infoUpdateOrder.message });
-            return res.json({ error: false, message: infoUpdateOrder.message })
+            return res.json({ error: false, data: infoUpdateOrder.data })
         } else {
             // nếu chưa có giỏ hàng nào chưa thanh toán thì tạo một giỏ hàng mới
             let timeOrder = Date.now();
             let id = uuidv5(timeOrder.toString(), MY_NAMESPACE);
             let haDInsertOrder = await ORDER_MODEL.insert(id, idUser, productID, timeOrder, addressShip, amount, status);
             if (!haDInsertOrder) return res.json({ error: true, message: haDInsertOrder.message });
-            return res.json({ error: false, message: haDInsertOrder.message })
+            return res.json({ error: false, data: haDInsertOrder.data })
         }
     }
 
@@ -92,6 +94,8 @@ route.post('/remove-order', async (req, res) => {
 
 route.post('/pay', async (req, res) => {
     let { orderID } = req.body;
+    console.log(orderID);
+    
     let { token } = req.headers;
     console.log('==========pay  order=========')
     addressShip = '';
@@ -100,7 +104,6 @@ route.post('/pay', async (req, res) => {
     let { role, id: idUser } = infoUserVerify.data;
     if (infoUserVerify) {
 
-        // infoUser= await CUSTOMER_MODEL.findById(idUser);
 
         let infoOder = await ORDER_MODEL.findByID(orderID, idUser);
         if (infoOder.error) return res.json({

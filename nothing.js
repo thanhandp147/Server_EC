@@ -1,18 +1,3 @@
-let array = [
-    {
-        name: "1",
-        child: [
-            {
-                name: '1',
-                child:[
-                    {
-                        name:'1',
-                        child:[
-                            
-                        ]
-                    }
-                ]
-            }
-        ]
-    }
-]
+let date = Date.now()
+
+console.log(date);
