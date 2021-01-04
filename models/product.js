@@ -3,6 +3,11 @@ const { sign, verify } = require('../utils/jwt');
 const { driver } = require('../config/cf_db')
 const session = driver.session();
 
+const puppeteer = require('puppeteer');
+const neo4j = require('neo4j-driver');
+
+
+
 module.exports = class Products {
 
     // LAY THONG TIN SAN PHAM THEO ID
@@ -189,7 +194,7 @@ module.exports = class Products {
 
         return new Promise(async resolve => {
             try {
-               
+
 
                 let query2 = `CALL gds.graph.create(
                     'myGraph',
@@ -261,7 +266,7 @@ module.exports = class Products {
     static findBestSell() {
         return new Promise(async resolve => {
             try {
-                
+
 
                 let query2 = `CALL gds.graph.create(
                     'myGraph',
@@ -393,7 +398,7 @@ module.exports = class Products {
                             let resultQueryGetOrderOfUser = await session.run(queryGetOrderOfUser);
 
                             if (resultQueryGetOrderOfUser.records.length) {
-                                
+
                                 let query2 = `CALL gds.graph.create(
                                     'myGraph',
                                     ['Customer', 'Products'],
@@ -454,9 +459,6 @@ module.exports = class Products {
                                 if (item._fields[1].properties.Level.low == 4) {
                                     arrayDemo = arrayDemo.slice(0, 4)
                                 }
-
-
-
                                 arrayDemo.map(item => {
                                     return listProductRecomend.push(item._fields[0].properties)
                                 })
@@ -464,7 +466,104 @@ module.exports = class Products {
                             }
                         }
 
-                        // console.log(listProductRecomend);
+                        let listTopProducts = []
+                        if (listProductRecomend.length > 0) {
+                            (async () => {
+                                for (const item of listProductRecomend) {
+
+                                    let count = 0;
+                                    let score = 0;
+                                    let queryCheckProductHasPay = `MATCH (x:Products {id: "${item.id}" })<-[n:HAVE]-(y:Orders) RETURN n`;
+                                    let resultQueryCheckProductHasPay = await session.run(queryCheckProductHasPay);
+                                    if (resultQueryCheckProductHasPay.records.length > 0) {
+                                        resultQueryCheckProductHasPay.records.map(itemAfterCheck => {
+                                            count += itemAfterCheck._fields[0].properties.HAVE
+                                        })
+                                    }
+
+                                    let queryCheckScoreProduct = `MATCH (x:Products {id: "${item.id}" })<-[n:FOCUS]-(y:Customer) RETURN n`;
+                                    let resultQueryCheckScoreProduct = await session.run(queryCheckScoreProduct);
+                                    if (resultQueryCheckScoreProduct.records.length > 0) {
+                                        resultQueryCheckScoreProduct.records.map(item => {
+                                            score += item._fields[0].properties.Score
+                                        })
+                                    }
+                                    listTopProducts.push({ data: item, hasPay: count, totalScore: score });
+                                    
+                                    
+                                }
+
+                                let unique = [...new Map(listTopProducts.map(item => [item['data'].id, item])).values()]
+                                return resolve({ error: false, data: unique });
+                            })()
+
+                        }
+                    })()
+                } else {
+                    return resolve({ error: false, data: listProductRecomend });
+                }
+
+            } catch (error) {
+                return resolve({ error: true, message: error.message });
+            }
+        })
+    }
+
+    static getRecommendProductBySimilarity2(idUser) {
+        return new Promise(async resolve => {
+            try {
+                // console.log(idUser);
+
+                let queryFindListUserSimilarityWithUs = `MATCH (:Customer {id: $id})-[p:SIMILARITY]-> (listUser:Customer) RETURN listUser, p`
+
+                let resultQueryFindListUserSimilarityWithUs = await session.run(queryFindListUserSimilarityWithUs, {
+                    id: idUser
+                })
+
+
+
+                let listProductRecomend = []
+
+                if (resultQueryFindListUserSimilarityWithUs.records.length) {
+                    (async () => {
+                        for (const item of resultQueryFindListUserSimilarityWithUs.records) {
+
+                            let queryGetOrderOfUser = `MATCH (order:Orders{ idCustomer : "${item._fields[0].properties.id}", status : 1 })	
+                           RETURN order `
+                            let resultQueryGetOrderOfUser = await session.run(queryGetOrderOfUser);
+
+                            if (resultQueryGetOrderOfUser.records.length) {
+
+                                let getListProductIFocus = `match (u:Customer {id:'${idUser}'})-[:FOCUS]->(p:Products)<-[:HAVE]-(o:Orders {id:'${resultQueryGetOrderOfUser.records[resultQueryGetOrderOfUser.records.length - 1]._fields[0].properties.id}'})
+                                 return p`
+
+                                let resultGetListProductIFocus = await session.run(getListProductIFocus);
+
+
+                                let arrayDemo = [];
+
+                                let arrayNew = resultGetListProductIFocus.records.map((item, index) => {
+                                    return arrayDemo.push(item)
+                                })
+
+                                if (item._fields[1].properties.Level.low == 1) {
+                                    arrayDemo = arrayDemo.slice(0, 1)
+                                }
+                                if (item._fields[1].properties.Level.low == 2) {
+                                    arrayDemo = arrayDemo.slice(0, 2)
+                                }
+                                if (item._fields[1].properties.Level.low == 3) {
+                                    arrayDemo = arrayDemo.slice(0, 3)
+                                }
+                                if (item._fields[1].properties.Level.low == 4) {
+                                    arrayDemo = arrayDemo.slice(0, 4)
+                                }
+                                arrayDemo.map(item => {
+                                    return listProductRecomend.push(item._fields[0].properties)
+                                })
+                            } else {
+                            }
+                        }
 
                         let listTopProducts = []
                         if (listProductRecomend.length > 0) {
@@ -494,11 +593,7 @@ module.exports = class Products {
                             })()
 
                         }
-                        // return resolve({ error: false, data: listProductRecomend });
-
                     })()
-
-
                 } else {
                     return resolve({ error: false, data: listProductRecomend });
                 }
@@ -526,17 +621,110 @@ module.exports = class Products {
                     //     }
                     // })()
                     resultQueryFindListUserSimilarityWithUs.records = resultQueryFindListUserSimilarityWithUs.records.map(item => {
-                        console.log(item._fields[0].properties.id);
-                        
-                        return item._fields[0].properties.id
+                        return item._fields[0].properties
                     })
 
                     // console.log(resultQueryFindListUserSimilarityWithUs.records);
 
                     let findDuplicates = arr => arr.filter((item, index) => arr.indexOf(item) != index)
                     console.log([...new Set(findDuplicates(resultQueryFindListUserSimilarityWithUs.records))])
+                    return resolve({ error: false, data: resultQueryFindListUserSimilarityWithUs.records });
 
                 }
+
+            } catch (error) {
+                return resolve({ error: true, message: error.message });
+            }
+        })
+    }
+
+    static crawlListProduct(data) {
+        return new Promise(async resolve => {
+            try {
+                let { nameParent, nameChild, linkCrawl, linkImageCover } = data;
+
+                let queryCreateChildCategory = `match (category:Categorys { name:'${nameParent}'}) 
+                CREATE (a:Categorys {name: "${nameChild}", image:"${linkImageCover}" } )
+                CREATE (a)-[:child_category]->(category)
+                RETURN a`
+
+                let resultQueryCreateChildCategory = await session.run(queryCreateChildCategory);
+
+                let electronicUrl = linkCrawl;
+                console.log({ electronicUrl });
+
+                (async () => {
+                    const browser = await puppeteer.launch({ headless: true });
+                    const page = await browser.newPage();
+                    await page.goto(electronicUrl);
+
+                    let electronicData = await page.evaluate(() => {
+                        let products = [];
+
+                        let product_wrapper = document.querySelectorAll('.product-item');
+                        product_wrapper.forEach((product, i) => {
+                            if (i > 19) return
+                            let dataJson = {}
+                            try {
+                                // let cate = product.getAttribute('data-category');
+                                dataJson.id = product.getAttribute('href').split('.')[0].split('-').reverse()[0];
+                                dataJson.name = product.querySelector('.name > span').textContent;
+                                dataJson.price = product.querySelector('.price-discount__price').textContent.split(' ')[0].split('.').join('');
+                                // dataJson.price = product.getAttribute('data-price');
+                                dataJson.img = product.querySelector('.thumbnail > img').src;
+                                // dataJson.category = cate.slice(cate.indexOf('/') + 1, cate.length);
+                                dataJson.description = 'chưa có mô tả'
+
+                            }
+                            catch (err) {
+                                console.log(err)
+                            }
+                            products.push(dataJson);
+                        });
+                        return products;
+                    });
+
+                    console.log({ electronicData });
+                    await browser.close();
+
+                    let query = `MATCH (n) RETURN n`;
+                    let queryCategory = `MATCH (n:Categorys) WHERE n.name = $categoryName RETURN n `;
+                    let queryCreateProduct = 'CREATE (a:Products {id: $idProduct, name: $productName, image : $image, decription: $decription, price : $price } ) RETURN a';
+                    let queryReShipProductCategory = 'MATCH (product:Products { name: $productName }),(category:Categorys { name:$categoryName}) CREATE (product)-[:INSIDE ]->(category)';
+
+
+                    for (const _product of electronicData) {
+
+                        const newProduct = await session.run(
+                            queryCreateProduct, {
+                            idProduct: _product.id,
+                            productName: _product.name,
+                            image: _product.img,
+                            decription: _product.description,
+                            price: Number(_product.price)
+                        });
+                        const relationshipWithCategory = await session.run(
+                            queryReShipProductCategory
+                            , {
+                                productName: _product.name,
+                                categoryName: nameChild
+                            }
+                        );
+                    }
+                })();
+                // let queryFindListUserSimilarityWithUs = `MATCH (n:Products) RETURN n `
+
+                // let resultQueryFindListUserSimilarityWithUs = await session.run(queryFindListUserSimilarityWithUs)
+
+                // if (resultQueryFindListUserSimilarityWithUs.records) {
+                //     resultQueryFindListUserSimilarityWithUs.records = resultQueryFindListUserSimilarityWithUs.records.map(item => {
+                //         console.log(item._fields[0].properties.id);
+
+                //         return item._fields[0].properties
+                //     })
+                //     return resolve({ error: false, data: resultQueryFindListUserSimilarityWithUs.records });
+                // }
+                return resolve({ error: false });
 
             } catch (error) {
                 return resolve({ error: true, message: error.message });
@@ -676,7 +864,7 @@ module.exports = class Products {
         return new Promise(async resolve => {
             try {
                 // console.log(idUser);
-                
+
                 // let query =
                 //     `
                 //         MATCH(n:Products) 
@@ -731,6 +919,64 @@ module.exports = class Products {
             } catch (error) {
                 return resolve({ error: true, message: error.message });
             }
+        })
+    }
+
+    static findWithKey(key) {
+        return new Promise(async resolve => {
+            // session = driver.session();
+            let query =
+                `   
+            MATCH (p:Products)
+            WHERE p.name CONTAINS $key
+            RETURN p
+                `;
+            let listProducts = await session.run(query, { key: key });
+
+
+            let listTopProducts = []
+            // listProducts.records = listProducts.records.map(item => {
+            //     // return (100 - (Number(item._fields[0].properties.newPrice / item._fields[0].properties.price * 100)))
+            //     console.log(item);
+
+            // })
+            if (listProducts.records.length > 0) {
+
+                // listProducts.records = listProducts.records.slice(0, 10)
+                // listProducts.records = listProducts.records.map(item => {
+                //     return item._fields[0].properties
+                // })
+                (async () => {
+                    for (const item of listProducts.records) {
+                        let count = 0;
+                        let score = 0;
+                        let queryCheckProductHasPay = `MATCH (x:Products {id: "${item._fields[0].properties.id}" })<-[n:HAVE]-(y:Orders) RETURN n`;
+                        let resultQueryCheckProductHasPay = await session.run(queryCheckProductHasPay);
+                        if (resultQueryCheckProductHasPay.records.length > 0) {
+                            resultQueryCheckProductHasPay.records.map(itemAfterCheck => {
+                                count += itemAfterCheck._fields[0].properties.HAVE
+                            })
+                        }
+
+                        let queryCheckScoreProduct = `MATCH (x:Products {id: "${item._fields[0].properties.id}" })<-[n:FOCUS]-(y:Customer) RETURN n`;
+                        let resultQueryCheckScoreProduct = await session.run(queryCheckScoreProduct);
+                        if (resultQueryCheckScoreProduct.records.length > 0) {
+                            resultQueryCheckScoreProduct.records.map(item => {
+                                score += item._fields[0].properties.Score
+                            })
+                        }
+                        listTopProducts.push({ data: item._fields[0].properties, hasPay: count, totalScore: score });
+                    }
+                    return resolve({ error: false, data: listTopProducts });
+                })(listTopProducts)
+            } else {
+                return resolve({ error: false, data: listTopProducts });
+            }
+
+            // if (!listProducts)
+            //     return resolve({ error: true, message: 'get_product_fail' });
+
+            // return resolve({ error: false, data: listProducts.records });
         })
     }
 

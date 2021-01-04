@@ -91,18 +91,11 @@ route.get('/list', async (req, res) => {
 });
 
 route.get('/similarity', async (req, res) => {
-    let { token } = req.headers;
-
-    let infoUserVerify = await verify(`${token}`)
-    let { role, id: idUser } = infoUserVerify.data;
-
-    if (infoUserVerify) {
-        let data = await CUSTOMER_MODEL.similarity({ idUser });
-        return res.json({
-            error: false,
-            data: data.data
-        })
-    }
+    let data = await CUSTOMER_MODEL.similarity();
+    return res.json({
+        error: false,
+        data: data.data
+    })
 });
 
 

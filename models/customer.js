@@ -698,11 +698,11 @@ module.exports = class Customers {
     }
 
     // TINH SIMULATOR
-    static similarity(data) {
+    static similarity() {
 
         return new Promise(async resolve => {
             try {
-                let { idUser } = data;
+
 
 
                 let query2 = `CALL gds.graph.create(

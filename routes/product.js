@@ -83,7 +83,18 @@ route.get('/get-bestsel', async (req, res) => {
         error: false,
         data: data.data
     })
+});
 
+route.get('/find/:key', async (req, res) => {
+
+    let { key } = req.params
+    console.log({key});
+
+    let data = await PRODUCT_MODEL.findWithKey(key);
+    return res.json({
+        error: false,
+        data: data.data
+    })
 });
 
 // route.get('/', async (req, res) => {
@@ -152,6 +163,27 @@ route.get('/get-recommend-product-by-similarity', async (req, res) => {
 
     if (infoUserVerify) {
         let data = await PRODUCT_MODEL.getRecommendProductBySimilarity(idUser);
+        // if (makeRelClick.error) return res.json({
+        //     error: true,
+        //     message: makeRelClick.message
+        // })
+
+        return res.json({
+            error: false,
+            data: data.data
+        })
+    }
+});
+
+route.get('/get-recommend-product-by-similarity2', async (req, res) => {
+    
+    let { token } = req.headers;
+
+    let infoUserVerify = await verify(`${token}`)
+    let { role, id: idUser } = infoUserVerify.data;
+
+    if (infoUserVerify) {
+        let data = await PRODUCT_MODEL.getRecommendProductBySimilarity2(idUser);
         // if (makeRelClick.error) return res.json({
         //     error: true,
         //     message: makeRelClick.message

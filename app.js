@@ -14,6 +14,11 @@ const uuidv5 = require('uuid').v5;
 
 const MY_NAMESPACE = '1b671a64-40d5-491e-99b0-da01ff1f0000';
 
+var cors = require('cors');
+
+app.use(cors());
+app.options('*', cors());
+
 app.use(bodyParser.urlencoded());
 app.use(bodyParser.json());
 
